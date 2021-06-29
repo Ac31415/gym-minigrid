@@ -642,6 +642,8 @@ class MiniGridEnv(gym.Env):
         # Done completing task
         done = 6
 
+        # actions_set = [left, right, forward, pickup, drop, toggle, done]
+
     def __init__(
         self,
         grid_size=None,
@@ -663,6 +665,15 @@ class MiniGridEnv(gym.Env):
 
         # Actions are discrete integer values
         self.action_space = spaces.Discrete(len(self.actions))
+
+        # To get to another row, we subtract or add the width of the grid (self.x_max) since the state is an integer
+        self.action_state_to_next_state = [lambda s: s,                         # turn left
+                                           lambda s: s,                         # turn right
+                                           lambda s: s + self.x_max if self.world[s][1] < (self.y_max - 1) and self.agent_dir == 1 else (s - self.x_max if self.world[s][1] > 0 and self.agent_dir == 3 else (s + 1 if self.world[s][0] < (self.x_max - 1) and self.agent_dir == 0 else (s - 1 if self.world[s][0] > 0 and self.agent_dir == 2 else s))), # go forward but depending on which direction the agent is facing
+                                           lambda s: s,                         # pickup
+                                           lambda s: s,                         # drop
+                                           lambda s: s,                         # toggle
+                                           lambda s: s]                         # done
 
         # Number of cells (width and height) in the agent view
         assert agent_view_size % 2 == 1
@@ -690,6 +701,12 @@ class MiniGridEnv(gym.Env):
         # Environment configuration
         self.width = width
         self.height = height
+
+        self.grid_shape = (self.width, self.height)
+        self.x_max = self.grid_shape[0]
+        self.y_max = self.grid_shape[1]
+        self.world = self._generate_world()
+
         self.max_steps = max_steps
         self.see_through_walls = see_through_walls
 
@@ -702,6 +719,17 @@ class MiniGridEnv(gym.Env):
 
         # Initialize the state
         self.reset()
+
+    def _generate_world(self):
+        """
+        Creates and returns the griduniverse map as a numpy array.
+
+        The states are defined by their index and contain a tuple of uint16 values that represent the
+        coordinates (x,y) of a state in the grid.
+        """
+        world = np.fromiter(((x, y) for y in np.nditer(np.arange(self.y_max))
+                             for x in np.nditer(np.arange(self.x_max))), dtype='int64, int64')
+        return world
 
     def reset(self):
         # Current position and direction of the agent
@@ -955,6 +983,18 @@ class MiniGridEnv(gym.Env):
         self.grid.set(i, j, obj)
         obj.init_pos = (i, j)
         obj.cur_pos = (i, j)
+
+
+    def put_obj_rand(self, obj, i, j):
+        """
+        Put an object at a random position in the grid
+        """
+        x = self._rand_int(1, i)
+        y = self._rand_int(1, j)
+
+        self.grid.set(x, y, obj)
+        obj.init_pos = (x, y)
+        obj.cur_pos = (x, y)
 
     def place_agent(
         self,
